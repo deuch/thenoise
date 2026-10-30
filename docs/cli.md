@@ -22,9 +22,37 @@ DiT checkpoint.
 |------|----------|---------|-------------|
 | `--dit` | yes | — | Path to the DiT checkpoint (`.safetensors`) |
 | `--vae` | yes | — | Path to the VAE checkpoint (`.safetensors`) |
-| `--text-encoder` | yes | — | Path to the text encoder checkpoint (`.safetensors`) |
+| `--text-encoder` | yes¹ | — | Path to the text encoder checkpoint (`.safetensors`) |
+| `--text-encoder-url` | no | — | Base URL of a `text-encoder-serve` worker, used instead of `--text-encoder` (Qwen-Image 2.1 only) |
 | `--lora-dir` | no | — | Directory containing LoRA `.safetensors` files |
 | `--device` | no | `cuda` | Inference device (ROCm aliases `cuda` → `hip`) |
+
+¹ Or `--text-encoder-url`.
+
+## Text encoder on a different GPU (Qwen-Image 2.1)
+
+A torch build drives one GPU vendor (ROCm *or* CUDA), so an AMD and an NVIDIA GPU
+cannot be used from one process. Instead, run the text encoder as a separate worker in a
+venv with the torch build for its GPU, and point the main process at it. Example: encoder
+on a Radeon (ROCm), DiT + VAE on an NVIDIA card (CUDA).
+
+```bash
+# 1. ROCm venv: the encoder worker (loads the encoder on the Radeon, keeps it resident)
+./thenoise.sh text-encoder-serve \
+  --text-encoder ./models/qwen_image21/text_encoders/qwen3_vl_8b.safetensors \
+  --device cuda --port 8100
+
+# 2. CUDA venv: DiT + VAE on the NVIDIA card (idle weights wait in --offload-device)
+./thenoise_cuda.sh serve \
+  --dit ./models/qwen_image21/diffusion_models/qwen_image_21.safetensors \
+  --vae ./models/qwen_image21/vae/wan22_vae.safetensors \
+  --text-encoder-url http://127.0.0.1:8100 \
+  --device cuda --offload-device cpu
+```
+
+Only prompt embeddings (a few MB) and, for edits, the reference images cross the
+connection. The worker's endpoint is unauthenticated: keep it on `127.0.0.1` or a
+trusted network. Pick a specific card in a multi-GPU box with `--device cuda:1`.
 
 ## Serve a model over HTTP
 

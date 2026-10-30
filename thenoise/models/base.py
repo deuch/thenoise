@@ -129,6 +129,14 @@ class DiffusionModel(ABC):
     # target``.
     KV_CACHED_SLICE: ClassVar[str] = "suffix"
 
+    # True when the adapter can take its prompt embeddings from a remote worker
+    # (``ModelConfig.text_encoder_url``) instead of loading the encoder itself.
+    REMOTE_TEXT_ENCODER: ClassVar[bool] = False
+
+    @property
+    def remote_text_encoder(self) -> bool:
+        """True when prompt encoding happens in another process, so it needs no room here."""
+        return False
     def _lora_key_map(self, key: str) -> str:
         """Map a LoRA key to this model's schema.
 

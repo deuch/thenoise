@@ -15,20 +15,23 @@ def _serve(args) -> None:
     runtime = Runtime(settings)
 
     # Load the model only when all three checkpoints are supplied; otherwise
-    # serve model-free (upscale only).
-    model_paths = [args.dit, args.vae, args.text_encoder]
+    # serve model-free (upscale only). The text encoder may be a remote worker.
+    text_encoder = args.text_encoder or args.text_encoder_url
+    model_paths = [args.dit, args.vae, text_encoder]
     if any(model_paths):
         if not all(model_paths):
             raise SystemExit(
                 "serve: to load a model you must supply --dit, --vae and "
-                "--text-encoder together; omit all three to run without a model"
+                "--text-encoder (or --text-encoder-url) together; omit all three "
+                "to run without a model"
             )
         runtime.load(
             ModelPaths(
                 dit_path=args.dit,
                 vae_path=args.vae,
-                text_encoder_path=args.text_encoder,
+                text_encoder_path=args.text_encoder or "",
                 lora_dir=args.lora_dir,
+                text_encoder_url=args.text_encoder_url,
             ),
         )
 
@@ -48,6 +51,9 @@ def main(argv=None) -> None:
     args = build_parser().parse_args(argv)
     if args.command == "serve":
         _serve(args)
+    elif args.command == "text-encoder-serve":
+        from .remote_encoder import run_encoder_server
+        run_encoder_server(args)
     elif args.command == "generate":
         from .generate import run_generate
         run_generate(args)
@@ -62,7 +68,8 @@ def main(argv=None) -> None:
         run_controlmap(args)
     else:  # pragma: no cover - argparse requires a subcommand
         raise SystemExit(
-            "choose a subcommand: serve | generate | edit | upscale | controlmap"
+            "choose a subcommand: serve | text-encoder-serve | generate | edit | "
+            "upscale | controlmap"
         )
 
 

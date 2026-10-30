@@ -26,8 +26,10 @@ def _check_dim(name: str, value) -> None:
 
 def _build_runtime(args):
     """Load the model and split a one-shot --pixel-upscaler into dir+name."""
+    from .cli import require_text_encoder
     from .runtime import Settings, ModelPaths, Runtime
 
+    require_text_encoder(args)
     settings = Settings(device=args.device)
 
     upscaler_dir = ""
@@ -46,8 +48,9 @@ def _build_runtime(args):
         ModelPaths(
             dit_path=args.dit,
             vae_path=args.vae,
-            text_encoder_path=args.text_encoder,
+            text_encoder_path=args.text_encoder or "",
             lora_dir=args.lora_dir,
+            text_encoder_url=args.text_encoder_url,
         ),
     )
     return runtime, pixel_upscaler

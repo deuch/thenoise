@@ -39,6 +39,7 @@ from thenoise.models.base import (
     normalize_keys,
 )
 from thenoise.models.config import EncodePromptArgs, ModelConfig, SamplingParams
+from thenoise.remote_encoder import RemoteTextEncoder
 from thenoise.upscale import LatentUpscaler, Qwen21TranscodeUpscaler
 from thenoise.utils.image_tensor import flatten_alpha, ReferenceSizing
 from thenoise.utils.lora import FUSE_GATE_UP
@@ -78,6 +79,8 @@ class QwenImage21Model(DiffusionModel):
     # The step-invariant slice is the LEADING text/reference prefix (target last).
     KV_CACHED_SLICE = "prefix"
 
+    REMOTE_TEXT_ENCODER = True
+
     # 32 px: a reference latent replaces whole 32x32 vision tokens, as in ``resolve_size``.
     REFERENCE_SIZING = ReferenceSizing(align=32)
 
@@ -101,10 +104,20 @@ class QwenImage21Model(DiffusionModel):
         # Per-run state, filled in by ``prepare_latent``.
         self._seqs: dict[str, QwenImage21Sequence] = {}
 
-        logger.info("Loading Qwen-Image 2.1 text encoder (Qwen3-VL-8B) from %s", config.text_encoder_path)
-        self.text_encoder: QwenImage21TextEncoder = load_qwen_image21_text_encoder(
-            config.text_encoder_path, dtype=config.dtype, device=self._load_target(config.text_encoder_path)
-        )
+        self.text_encoder: QwenImage21TextEncoder | RemoteTextEncoder
+        if config.text_encoder_url:
+            logger.info("Using the remote Qwen-Image 2.1 text encoder at %s",
+                        config.text_encoder_url)
+            self.text_encoder = RemoteTextEncoder(
+                config.text_encoder_url, device=self.device, dtype=config.dtype
+            )
+            self.text_encoder.check()
+        else:
+            logger.info("Loading Qwen-Image 2.1 text encoder (Qwen3-VL-8B) from %s", config.text_encoder_path)
+            self.text_encoder = load_qwen_image21_text_encoder(
+                config.text_encoder_path, dtype=config.dtype,
+                device=self._load_target(config.text_encoder_path),
+            )
 
         self.vae = load_wan22_vae(self.vae_path, device=self._load_target(self.vae_path))
         if self.vae.z_dim != self.dit.in_channels:
@@ -114,10 +127,17 @@ class QwenImage21Model(DiffusionModel):
             )
 
         self.memory.register("dit", self.dit)
-        self.memory.register("text_encoder", self.text_encoder)
+        # A remote encoder has no weights here: nothing to place or evict.
+        self.memory.register(
+            "text_encoder", None if config.text_encoder_url else self.text_encoder
+        )
         self.memory.register("vae", self.vae)
 
         logger.info("Qwen-Image 2.1 model ready on %s (%s)", config.device, config.dtype)
+
+    @property
+    def remote_text_encoder(self) -> bool:
+        return isinstance(self.text_encoder, RemoteTextEncoder)
 
     # ------------------------------------------------------------ kernels
     def _encoder_images(self, args: EncodePromptArgs) -> Optional[list]:

@@ -148,6 +148,17 @@ def test_serve_builds_settings_and_loads_model(monkeypatch, fake_runtime):
     )
 
 
+def test_serve_loads_a_model_with_a_remote_text_encoder(monkeypatch, fake_runtime):
+    monkeypatch.setattr("thenoise.api.create_app", lambda runtime: object())
+    monkeypatch.setattr("uvicorn.run", lambda app, host, port: None)
+    _serve(_parse(["serve", "--dit", "d", "--vae", "v",
+                   "--text-encoder-url", "http://w:8100", "--device", "cuda"]))
+    assert fake_runtime[0].loaded == ModelPaths(
+        dit_path="d", vae_path="v", text_encoder_path="",
+        text_encoder_url="http://w:8100",
+    )
+
+
 def test_serve_without_model_does_not_load(monkeypatch, fake_runtime):
     monkeypatch.setattr("thenoise.api.create_app", lambda runtime: object())
     monkeypatch.setattr("uvicorn.run", lambda app, host, port: None)

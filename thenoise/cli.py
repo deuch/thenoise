@@ -15,11 +15,24 @@ def _add_model_paths(p: argparse.ArgumentParser, required: bool = True) -> None:
                    help="DiT checkpoint (.safetensors)")
     p.add_argument("--vae", required=required, metavar="PATH",
                    help="VAE checkpoint (.safetensors)")
-    p.add_argument("--text-encoder", required=required, metavar="PATH",
-                   help="text encoder checkpoint (.safetensors)")
+    p.add_argument("--text-encoder", required=False, metavar="PATH",
+                   help="text encoder checkpoint (.safetensors); not needed with "
+                        "--text-encoder-url")
+    p.add_argument("--text-encoder-url", default="", metavar="URL",
+                   help="use a 'text-encoder-serve' worker (e.g. http://127.0.0.1:8100) "
+                        "instead of loading the text encoder here; lets the encoder "
+                        "run on a GPU of another vendor (Qwen-Image 2.1 only)")
     p.add_argument("--lora-dir", default="", metavar="PATH",
                    help="directory containing LoRA .safetensors files "
                         "(subdirectories allowed)")
+
+
+def require_text_encoder(args: argparse.Namespace) -> None:
+    """A model needs its text encoder from somewhere: a checkpoint or a worker."""
+    if not (args.text_encoder or args.text_encoder_url):
+        raise SystemExit(
+            f"{args.command}: supply --text-encoder or --text-encoder-url"
+        )
 
 
 def _add_upscaler_args(p: argparse.ArgumentParser) -> None:
@@ -124,6 +137,21 @@ def build_parser() -> argparse.ArgumentParser:
         "--offload-device", default="cpu",
         help="device for idle weights (default: %(default)s; pass the compute device to"
              " keep every weight set resident)")
+
+    # text-encoder-serve: the prompt encoder alone, for a GPU the diffusion process
+    # cannot drive (e.g. ROCm encoder + CUDA diffusion)
+    enc = sub.add_parser("text-encoder-serve",
+                         help="serve the Qwen-Image 2.1 text encoder to other thenoise "
+                              "processes (--text-encoder-url)")
+    enc.add_argument("--text-encoder", required=True, metavar="PATH",
+                     help="text encoder checkpoint (.safetensors)")
+    enc.add_argument("--host", default="127.0.0.1",
+                     help="bind host (default: 127.0.0.1); the endpoint is "
+                          "unauthenticated, expose it only on a trusted network")
+    enc.add_argument("--port", type=int, default=8100,
+                     help="bind port (default: 8100)")
+    enc.add_argument("--device", default="cuda",
+                     help="encoder device; ROCm aliases cuda -> hip (default: cuda)")
 
     # generate
     gen = sub.add_parser("generate", help="run one generation and save a PNG")

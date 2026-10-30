@@ -337,16 +337,21 @@ class PipelineController:
                 cond = self._cache.prompt_get()
             else:
                 seen = self._edit_images(request)
-                with memory.stage(
-                    "text_encoder",
-                    pixels=sum(image.width * image.height for image in seen),
-                ) as s:
-                    cond_raw = s.run(model.encode_prompt, EncodePromptArgs(
-                        prompt=request.prompt,
-                        negative_prompt=request.negative_prompt,
-                        guidance_scale=r.guidance_scale,
-                        image=request.image if is_edit else None,
-                    ))
+                encode_args = EncodePromptArgs(
+                    prompt=request.prompt,
+                    negative_prompt=request.negative_prompt,
+                    guidance_scale=r.guidance_scale,
+                    image=request.image if is_edit else None,
+                )
+                if model.remote_text_encoder:
+                    # encoded in another process: no weights or room needed here
+                    cond_raw = model.encode_prompt(encode_args)
+                else:
+                    with memory.stage(
+                        "text_encoder",
+                        pixels=sum(image.width * image.height for image in seen),
+                    ) as s:
+                        cond_raw = s.run(model.encode_prompt, encode_args)
 
             params = SamplingParams(
                 height=r.height, width=r.width, steps=r.steps, seed=r.seed,

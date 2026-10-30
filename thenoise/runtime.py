@@ -37,6 +37,7 @@ class ModelPaths:
     vae_path: str
     text_encoder_path: str
     lora_dir: str = ""
+    text_encoder_url: str = ""   # remote worker, instead of text_encoder_path
 
 
 class NotLoadedError(RuntimeError):
@@ -73,6 +74,8 @@ class Runtime:
 
         cls = resolve(paths.dit_path)
         name = cls.name
+        if paths.text_encoder_url and not cls.REMOTE_TEXT_ENCODER:
+            raise ValueError(f"model '{name}' cannot use a remote text encoder")
 
         config = ModelConfig(
             dit_path=paths.dit_path,
@@ -81,6 +84,7 @@ class Runtime:
             device=self._settings.device,
             offload_device=self._settings.offload_device,
             lora_dir=paths.lora_dir or None,
+            text_encoder_url=paths.text_encoder_url or None,
         )
 
         self._unload()  # swap: only one model resident at a time

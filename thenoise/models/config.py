@@ -29,6 +29,8 @@ class ModelConfig:
     device: str = "cuda"
     dtype: torch.dtype = torch.bfloat16
     lora_dir: Optional[str] = None
+    # Base URL of a ``text-encoder-serve`` worker; replaces ``text_encoder_path``.
+    text_encoder_url: Optional[str] = None
 
 
 @dataclass
