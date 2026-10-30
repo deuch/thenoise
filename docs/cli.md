@@ -37,18 +37,24 @@ venv with the torch build for its GPU, and point the main process at it. Example
 on a Radeon (ROCm), DiT + VAE on an NVIDIA card (CUDA).
 
 ```bash
-# 1. ROCm venv: the encoder worker (loads the encoder on the Radeon, keeps it resident)
+# 1. ROCm venv (default .venv): the encoder worker, resident on the Radeon 8060S
 ./thenoise.sh text-encoder-serve \
   --text-encoder ./models/qwen_image21/text_encoders/qwen3_vl_8b.safetensors \
   --device cuda --port 8100
 
-# 2. CUDA venv: DiT + VAE on the NVIDIA card (idle weights wait in --offload-device)
-./thenoise_cuda.sh serve \
+# 2. CUDA venv (separate, via THENOISE_VENV): DiT + VAE on the NVIDIA card
+#    (idle weights wait in --offload-device)
+THENOISE_VENV=.venv-cuda ./thenoise_cuda.sh serve \
   --dit ./models/qwen_image21/diffusion_models/qwen_image_21.safetensors \
   --vae ./models/qwen_image21/vae/wan22_vae.safetensors \
   --text-encoder-url http://127.0.0.1:8100 \
   --device cuda --offload-device cpu
 ```
+
+`thenoise.sh` and `thenoise_cuda.sh` both default to `.venv` and install torch only if it
+is missing, so the two must not share a venv: set `THENOISE_VENV` for one of them (the
+checkout is shared, the venvs are not). Each script installs its own torch build on
+first run.
 
 Only prompt embeddings (a few MB) and, for edits, the reference images cross the
 connection. The worker's endpoint is unauthenticated: keep it on `127.0.0.1` or a

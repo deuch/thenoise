@@ -7,7 +7,7 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
-VENV_DIR="$PROJECT_DIR/.venv"
+VENV_DIR="${THENOISE_VENV:-$PROJECT_DIR/.venv}"  # override to keep ROCm and CUDA venvs apart
 
 # ---- 1. Check that uv is available ----------------------------------------
 if ! command -v uv &>/dev/null; then
